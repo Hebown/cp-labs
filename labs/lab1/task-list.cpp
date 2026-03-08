@@ -1,26 +1,34 @@
-#include "opencv2/core.hpp"
+#include "opencv2/core/hal/interface.h"
 #include "opencv2/core/mat.hpp"
 #include "opencv2/imgcodecs.hpp"
-#include "opencv2/highgui.hpp"  // 用于显示图像
-#include <iostream>
 
 int main(){
-        
-    cv::Mat image = cv::imread("opencv-logo.png");
     
-    // 图像的通道数
-    std::cout << "image channels = " << image.channels() << std::endl;
-    std::cout << "channel type = " << image.type() << std::endl; // 输出 16，表示 8比特 无符号数 + 3通道
-    
-    cv::Vec3b _pixel = image.at<cv::Vec3b>(0,0); // 使用 Vec3 byte 访问每个像素
-    std::cout << "image rows (height) = " << image.rows << std::endl; // 图像的高度
-    std::cout << "image cols (width) = " << image.cols << std::endl; // 图像的宽度
-    
-    // 反色，一种方法是 使用 Scalar
-    cv::Mat result = cv::Scalar(255, 255, 255) - image;
-    
-    cv::imwrite("opencv-logo-inverted-scalar.png", result);
+    constexpr int N=32;
+    cv::Mat M = cv::Mat::zeros(N, N, CV_64F); // 为了求逆，需要用double
+    for (int i = 0; i < N; i++) {
+        M.at<double>(i, i) = 2;
+        if (i > 0) M.at<double>(i, i-1) = -1;
+        if (i < N-1) M.at<double>(i, i+1) = -1;
+    }
 
-    cv::waitKey(0); // 等待按键
+    // 求逆
+    cv::Mat M_inv=M.inv();
+
+    // 转换为灰度图
+    double minVal, maxVal; 
+    cv::minMaxLoc(M_inv, &minVal, &maxVal); // 获取数值范围   
+    cv::Mat grayImage(N, N, CV_8U);
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            double val = M_inv.at<double>(i, j);
+            grayImage.at<uchar>(i, j) = static_cast<uchar>(
+                255.0 * (val - minVal) / (maxVal - minVal)
+            );
+        }
+    }
+    
+    // 保存
+    cv::imwrite("M_inv.png", grayImage);
     return 0;
 }
