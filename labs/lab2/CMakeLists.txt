@@ -7,3 +7,5 @@ set(CMAKE_CXX_STANDARD 20)
 add_project(GaussianFilter GaussianFilter.cpp)
 
 set(CMAKE_CXX_STANDARD 17)
+
+add_project(MedianFilter MedianFilter.cpp)
