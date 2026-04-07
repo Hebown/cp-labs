@@ -5,7 +5,7 @@
 
 int main() {
     /* 测试稀疏矩阵 */
-    Sparse S;
+    Sparse S(6,6); // 这里必须指定稀疏矩阵的长和宽
 
     Veci rows{0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5};
     Veci cols{0, 4, 0, 1, 5, 1, 2, 3, 0, 2, 3, 4, 1, 3, 4, 5, 1, 4, 5};
@@ -42,12 +42,12 @@ int main() {
         std::cout << x[i] << ' ';
     std::cout << std::endl;
 
-    /* （加分项）测试共轭梯度法 */
-    x = Conjugate_Gradient(S, b, 1e-12, 100);
-    std::cout << std::endl << "共轭梯度结果：" << std::endl;
-    for (int i = 0; i < x.size(); i++)
-        std::cout << x[i] << ' ';
-    std::cout << std::endl;
+    // /* （加分项）测试共轭梯度法 */
+    // x = Conjugate_Gradient(S, b, 1e-12, 100);
+    // std::cout << std::endl << "共轭梯度结果：" << std::endl;
+    // for (int i = 0; i < x.size(); i++)
+    //     std::cout << x[i] << ' ';
+    // std::cout << std::endl;
 
     return 0;
 }
