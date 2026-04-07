@@ -11,3 +11,6 @@ add_executable(
     sparse.cpp
 )
 
+target_compile_options( opencv_lab3_main PRIVATE
+    /O2
+)

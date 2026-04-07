@@ -64,6 +64,9 @@ public:
     void initializeFromVector(const Veci& rows, const Veci& cols, const Vecd& input_vals);
 
     /* 如需其他公有成员变量和函数，请在此定义 */
+    void matvec(const Vecd& x, Vecd& result) const;
+
+    
     private:
         int getIndexOfElement(int row,int col) const;
         inline void checkInputRange(int row,int col) const;

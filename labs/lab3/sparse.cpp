@@ -1,5 +1,6 @@
 #include "sparse.h"
-
+#include <execution>
+#include <omp.h>
 Sparse::Sparse(int m,int n):m(m),n(n){
     row_ptr.resize(m + 1, 0);
 }
@@ -60,19 +61,20 @@ void Sparse::initializeFromVector(const Veci& rows, const Veci& cols, const Vecd
     vals.clear();
     col_ind.clear();
     const int nz = rows.size();
-    std::vector<Element> elements(nz);
-    for(int i=0;i<nz;i++){
-        elements[i].row=rows[i];
-        elements[i].col=cols[i];
-        elements[i].val=input_vals[i];
-    }
-    std::sort(elements.begin(),elements.end());
+    
+    std::vector<int> indices(nz);
+    for (int i = 0; i < nz; ++i) indices[i] = i;
+    std::sort(std::execution::par,indices.begin(), indices.end(), [&](int i, int j) {
+        if (rows[i] != rows[j]) return rows[i] < rows[j];
+        return cols[i] < cols[j];
+    });
+    
     // 按照字典序排序完之后就可以线性填入了
     // 这里我们使用了row_ptr的一个语义：前i行共有多少非0元素
     // 统计每行非零元个数
     std::vector<int> row_count(m, 0);
-    for (const auto& e : elements) {
-        row_count[e.row]++;
+    for (int idx : indices) {
+        row_count[rows[idx]]++;
     }
     // 计算 row_ptr（前缀和）
     row_ptr[0] = 0;
@@ -84,10 +86,13 @@ void Sparse::initializeFromVector(const Veci& rows, const Veci& cols, const Vecd
     std::vector<int> row_pos = row_ptr; // 拷贝，用于记录当前行的下一个填充位置
     vals.resize(nz);
     col_ind.resize(nz);
-    for (const auto& e : elements) {
-        int idx = row_pos[e.row]++;
-        vals[idx] = e.val;
-        col_ind[idx] = e.col;
+    for (int idx : indices) {
+        int row = rows[idx];
+        int col = cols[idx];
+        double val = input_vals[idx];
+        int pos = row_pos[row]++;
+        vals[pos] = val;
+        col_ind[pos] = col;
     }
 }
 
@@ -110,5 +115,20 @@ inline void Sparse::checkInputRange(int row,int col) const{
     }
     if(col >= n||col < 0){ // 超出矩阵范围
         throw std::runtime_error("at 所接受的参数 col 不合法");
+    }
+}
+
+
+void Sparse::matvec(const Vecd& x, Vecd& result) const {
+    result.assign(m, 0.0);
+    #pragma omp parallel for
+    for (int i = 0; i < m; ++i) {
+        double sum = 0.0;
+        int start = row_ptr[i];
+        int end = row_ptr[i+1];
+        for (int k = start; k < end; ++k) {
+            sum += vals[k] * x[col_ind[k]];
+        }
+        result[i] = sum;
     }
 }

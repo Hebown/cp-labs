@@ -17,7 +17,9 @@ set(OPENCV_INCLUDE_DIR "${OPENCV_BASE}/include")
 set(OPENCV_LIB_DIR "${OPENCV_BASE}/x64/vc16/lib")
 
 # 3. 具体的库文件名
-set(OPENCV_LIB_NAME "opencv_world4120d.lib")
+set(OPENCV_LIB_NAME "opencv_world4120.lib")
+
+set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 
 # 辅助函数
 function(add_project target sources)
@@ -29,7 +31,7 @@ function(add_project target sources)
 
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${OPENCV_BASE}/x64/vc16/bin/opencv_world4120d.dll" 
+        "${OPENCV_BASE}/x64/vc16/bin/opencv_world4120.dll" 
         $<TARGET_FILE_DIR:${target}>)
 endfunction()
 
@@ -41,3 +43,4 @@ string(REPLACE "/showIncludes" "" CMAKE_DEPFILE_FLAGS_CXX "${CMAKE_DEPFILE_FLAGS
 
 add_subdirectory(labs/lab1)
 add_subdirectory(labs/lab2)
+add_subdirectory(labs/lab3)

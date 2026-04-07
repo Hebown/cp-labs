@@ -42,12 +42,12 @@ int main() {
         std::cout << x[i] << ' ';
     std::cout << std::endl;
 
-    // /* （加分项）测试共轭梯度法 */
-    // x = Conjugate_Gradient(S, b, 1e-12, 100);
-    // std::cout << std::endl << "共轭梯度结果：" << std::endl;
-    // for (int i = 0; i < x.size(); i++)
-    //     std::cout << x[i] << ' ';
-    // std::cout << std::endl;
+    /* （加分项）测试共轭梯度法 */
+    x = Conjugate_Gradient(S, b, 1e-12, 100);
+    std::cout << std::endl << "共轭梯度结果：" << std::endl;
+    for (int i = 0; i < x.size(); i++)
+        std::cout << x[i] << ' ';
+    std::cout << std::endl;
 
     return 0;
 }
