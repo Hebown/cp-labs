@@ -1,3 +1,5 @@
+#include "ImageSet.hpp"
+#include "Interpolator.hpp"
 #include "Panorama.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include <iostream>
@@ -48,6 +50,9 @@ int main(int argc, char** argv) {
     } else if (interpType == "bilinear") {
         interpolator = std::make_unique<BilinearInterpolator>();
         std::cout << "使用双线性插值\n";
+    } else if (interpType == "bicubic") {
+        interpolator = std::make_unique<BicubicInterpolator>();
+        std::cout << "使用双三次插值\n";
     } else {
         std::cerr << "不支持的插值器类型: " << interpType << "\n";
         return 1;
