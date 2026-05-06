@@ -7,7 +7,7 @@ OrbMedianOffsetEstimator::OrbMedianOffsetEstimator(int nfeatures, float ratio, i
     : nfeatures_(nfeatures), ratio_(ratio), min_matches_(min_matches) {}
 
 bool OrbMedianOffsetEstimator::computeRelativeOffsets(const std::vector<cv::Mat>& cyl_images,
-                                                      std::vector<double>& rel_offsets) {
+                                                      std::vector<cv::Point2d>& rel_offsets) {
     rel_offsets.clear();
     if (cyl_images.size() < 2) return false;
 
@@ -15,45 +15,43 @@ bool OrbMedianOffsetEstimator::computeRelativeOffsets(const std::vector<cv::Mat>
     cv::BFMatcher bf(cv::NORM_HAMMING);
 
     for (size_t i = 0; i < cyl_images.size() - 1; ++i) {
-        cv::Mat img1 = cyl_images[i];
-        cv::Mat img2 = cyl_images[i+1];
-
         std::vector<cv::KeyPoint> kp1, kp2;
         cv::Mat desc1, desc2;
-        orb->detectAndCompute(img1, cv::noArray(), kp1, desc1);
-        orb->detectAndCompute(img2, cv::noArray(), kp2, desc2);
+        orb->detectAndCompute(cyl_images[i], cv::noArray(), kp1, desc1);
+        orb->detectAndCompute(cyl_images[i+1], cv::noArray(), kp2, desc2);
 
         if (desc1.empty() || desc2.empty()) {
-            printf("警告：图像 %zu 或 %zu 特征提取失败\n", i, i+1);
-            rel_offsets.push_back(0.0);
+            rel_offsets.push_back(cv::Point2d(0, 0));
             continue;
         }
 
         std::vector<std::vector<cv::DMatch>> matches;
         bf.knnMatch(desc1, desc2, matches, 2);
 
-        std::vector<cv::DMatch> good_matches;
+        std::vector<double> dxs, dys;
         for (auto& m : matches) {
             if (m.size() == 2 && m[0].distance < ratio_ * m[1].distance) {
-                good_matches.push_back(m[0]);
+                cv::Point2d p1 = kp1[m[0].queryIdx].pt;
+                cv::Point2d p2 = kp2[m[0].trainIdx].pt;
+                dxs.push_back(p1.x - p2.x);
+                dys.push_back(p1.y - p2.y);
             }
         }
-        if (good_matches.size() < min_matches_) {
-            printf("警告：图像 %zu 和 %zu 匹配点太少 (%zu)\n", i, i+1, good_matches.size());
-            rel_offsets.push_back(0.0);
+
+        if (dxs.size() < min_matches_) {
+            rel_offsets.push_back(cv::Point2d(0, 0));
             continue;
         }
 
-        std::vector<double> deltas;
-        for (const auto& match : good_matches) {
-            double x1 = kp1[match.queryIdx].pt.x;
-            double x2 = kp2[match.trainIdx].pt.x;
-            deltas.push_back(x1 - x2);   // 正值表示 img2 需要向右移
-        }
-        std::sort(deltas.begin(), deltas.end());
-        double median_dx = deltas[deltas.size() / 2];
-        rel_offsets.push_back(median_dx);
-        printf("图像 %zu -> %zu 水平偏移: %.2f 像素\n", i, i+1, median_dx);
+        std::sort(dxs.begin(), dxs.end());
+        std::sort(dys.begin(), dys.end());
+        
+        // 计算 dx 和 dy 的中位数
+        double mdx = dxs[dxs.size() / 2];
+        double mdy = dys[dys.size() / 2];
+        rel_offsets.push_back(cv::Point2d(mdx, mdy));
+        
+        printf("图像 %zu -> %zu 偏移: dx=%.2f, dy=%.2f\n", i, i+1, mdx, mdy);
     }
     return true;
 }

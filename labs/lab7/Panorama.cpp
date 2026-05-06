@@ -6,7 +6,8 @@ bool Panorama::makePanorama(std::vector<cv::Mat>& img_vec, cv::Mat& img_out, dou
     // 1. 将所有图像投影到柱面
     std::vector<cv::Mat> cyl_images;
     cyl_images.reserve(img_vec.size());
-    for (size_t i = 0; i < img_vec.size(); ++i) {
+    for (size_t i = 0; i < img_vec.size(); ++i) {        
+        // 柱面投影
         cv::Mat cyl;
         CylindricalProjector::project(img_vec[i], f, cyl, *interpolatorPtr);
         if (cyl.empty()) {
@@ -17,38 +18,35 @@ bool Panorama::makePanorama(std::vector<cv::Mat>& img_vec, cv::Mat& img_out, dou
         printf("第 %zu 张图像柱面投影完成，尺寸 %dx%d\n", i, cyl.cols, cyl.rows);
     }
 
-    // 2. 计算相邻图像的水平偏移
-    std::vector<double> rel_offsets;
-    if (!offsetEstimatorPtr->computeRelativeOffsets(cyl_images, rel_offsets)) {
-        printf("偏移计算失败\n");
-        return false;
-    }
+    // 2. 计算相对偏移
+    std::vector<cv::Point2d> rel_offsets;
+    offsetEstimatorPtr->computeRelativeOffsets(cyl_images, rel_offsets);
 
     // 累积全局偏移
-    std::vector<double> offsets(cyl_images.size(), 0.0);
+    std::vector<cv::Point2d> abs_offsets(cyl_images.size(), cv::Point2d(0, 0));
+    double min_y = 0, max_y = 0, max_x = 0;
+
     for (size_t i = 1; i < cyl_images.size(); ++i) {
-        offsets[i] = offsets[i-1] + rel_offsets[i-1];
+        abs_offsets[i] = abs_offsets[i-1] + rel_offsets[i-1];
+        min_y = std::min(min_y, abs_offsets[i].y);
     }
 
-    // 3. 根据偏移量确定画布尺寸和每张图的放置位置
-    if (cyl_images.empty()) return false;
-    double min_offset = *std::min_element(offsets.begin(), offsets.end());
-    int canvas_height = 0;
-    for (const auto& img : cyl_images) {
-        canvas_height = std::max(canvas_height, img.rows);
-    }
-    std::vector<int> x_positions(cyl_images.size());
-    double max_right = 0.0;
+    // 计算画布尺寸并校正坐标使其全为正数
+    std::vector<cv::Point> final_pos(cyl_images.size());
+    double min_x = 0; 
+    for(auto& p : abs_offsets) min_x = std::min(min_x, p.x);
+
     for (size_t i = 0; i < cyl_images.size(); ++i) {
-        x_positions[i] = static_cast<int>(std::round(offsets[i] - min_offset));
-        double right = x_positions[i] + cyl_images[i].cols;
-        max_right = std::max(max_right, right);
+        final_pos[i].x = static_cast<int>(std::round(abs_offsets[i].x - min_x));
+        final_pos[i].y = static_cast<int>(std::round(abs_offsets[i].y - min_y));
+        
+        max_x = std::max(max_x, (double)final_pos[i].x + cyl_images[i].cols);
+        max_y = std::max(max_y, (double)final_pos[i].y + cyl_images[i].rows);
     }
-    int canvas_width = static_cast<int>(std::ceil(max_right));
-    cv::Size canvas_size(canvas_width, canvas_height);
 
-    cv::Mat panorama;
-    imageBlenderPtr->blend(cyl_images, x_positions, canvas_size, panorama);
-    img_out = panorama;
+    cv::Size canvas_size(static_cast<int>(std::ceil(max_x)), static_cast<int>(std::ceil(max_y)));
+
+    // 3. 融合
+    imageBlenderPtr->blend(cyl_images, final_pos, canvas_size, img_out);
     return true;
 }
