@@ -1,5 +1,6 @@
 #include "ImageSet.hpp"
 #include "Interpolator.hpp"
+#include "OffsetEstimator.hpp"
 #include "Panorama.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include <iostream>
@@ -60,9 +61,12 @@ int main(int argc, char** argv) {
 
     std::string offsetType   = (argc >= 6) ? argv[5] : "orb";
     std::unique_ptr<OffsetEstimator> offsetEstimator;
-    if (offsetType == "orb") {
+    if (offsetType == "orb-median") {
         offsetEstimator = std::make_unique<OrbMedianOffsetEstimator>();
         std::cout << "使用 ORB + 中位数偏移估计\n";
+    } else if(offsetType == "orb-ransac"){
+        offsetEstimator = std::make_unique<OrbRansacOffsetEstimator>();
+        std::cout << "使用 ORB + RANSAC偏移估计\n";
     } else {
         std::cerr << "不支持的偏移估计器: " << offsetType << "\n";
         return 1;

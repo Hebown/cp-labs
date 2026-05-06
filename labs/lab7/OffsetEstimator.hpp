@@ -24,3 +24,18 @@ private:
     float ratio_;
     int min_matches_;
 };
+
+class OrbRansacOffsetEstimator : public OffsetEstimator {
+public:
+    OrbRansacOffsetEstimator(int nfeatures = 5000, float ratio = 0.75f, 
+                            int min_matches = 10, double ransac_thresh = 3.0);
+    
+    bool computeRelativeOffsets(const std::vector<cv::Mat>& cyl_images,
+                                std::vector<cv::Point2d>& rel_offsets) override;
+
+private:
+    int nfeatures_;
+    float ratio_;
+    int min_matches_;
+    double ransac_thresh_; // RANSAC 判定为内点的最大距离
+};
