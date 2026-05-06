@@ -1,51 +1,81 @@
 #include "ImageBlender.hpp"
+#include "opencv2/core/types.hpp"
 
 void LinearBlender::blend(const std::vector<cv::Mat>& images,
-                          const std::vector<int>& x_offsets,
+                          const std::vector<cv::Point>& offsets,
                           const cv::Size& canvas_size,
                           cv::Mat& result) {
-    CV_Assert(images.size() == x_offsets.size());
+    CV_Assert(images.size() == offsets.size());
     result = cv::Mat::zeros(canvas_size, CV_8UC3);
-    cv::Mat weight = cv::Mat::zeros(canvas_size, CV_32F);
+    
+    cv::Mat acc_result = cv::Mat::zeros(canvas_size, CV_32FC3);
+    cv::Mat acc_weight = cv::Mat::zeros(canvas_size, CV_32F);
 
-    for (size_t idx = 0; idx < images.size(); ++idx) {
-        const cv::Mat& img = images[idx];
-        int x_start = x_offsets[idx];
-        int x_end = x_start + img.cols;
-        int y_start = 0;
-        int y_end = img.rows;
+    // 修改模糊的宽度
+    const float feather_width = 40.0f; 
 
-        // 为当前图像生成权重图（从左到右线性渐变，从0到1）
-        cv::Mat img_weight = cv::Mat::zeros(img.size(), CV_32F);
-        for (int x = 0; x < img.cols; ++x) {
-            float w = static_cast<float>(x) / (img.cols - 1);
-            for (int y = 0; y < img.rows; ++y) {
-                img_weight.at<float>(y, x) = w;
-            }
-        }
+    for (size_t i = 0; i < images.size(); ++i) {
+        const cv::Mat& img = images[i];
+        int x_start = offsets[i].x;
+        int y_start = offsets[i].y;
+        
+        // 计算与左右邻居的重叠宽度
+        int overlap_left = (i == 0) ? 0 : (offsets[i-1].x + images[i-1].cols - x_start);
+        int overlap_right = (i == images.size() - 1) ? 0 : (x_start + img.cols - offsets[i+1].x);
 
-        // 叠加到全景图
-        for (int y = y_start; y < y_end; ++y) {
-            for (int x = x_start; x < x_end; ++x) {
-                int img_x = x - x_start;
-                int img_y = y - y_start;
-                float w = img_weight.at<float>(img_y, img_x);
-                float old_w = weight.at<float>(y, x);
-                float new_w = old_w + w;
+        for (int y = 0; y < img.rows; ++y) {
+            for (int x = 0; x < img.cols; ++x) {
+                float w = 1.0f;
 
-                if (new_w < 1e-6) continue;
+                // 窄带权重计算逻辑
+                // 1. 处理左边缘（进入带）
+                if (i > 0 && x < overlap_left) {
+                    float center = overlap_left / 2.0f;
+                    float start_f = center - feather_width / 2.0f;
+                    float end_f = center + feather_width / 2.0f;
 
-                cv::Vec3b pix = img.at<cv::Vec3b>(img_y, img_x);
-                cv::Vec3f old_pix = result.at<cv::Vec3b>(y, x);
-
-                cv::Vec3b blended;
-                for (int c = 0; c < 3; ++c) {
-                    float val = (old_pix[c] * old_w + pix[c] * w) / new_w;
-                    blended[c] = static_cast<uchar>(val);
+                    if (x < start_f) w = 0.0f;
+                    else if (x > end_f) w = 1.0f;
+                    else w = (x - start_f) / feather_width;
                 }
-                result.at<cv::Vec3b>(y, x) = blended;
-                weight.at<float>(y, x) = new_w;
+                
+                // 2. 处理右边缘（退出带）
+                // 只有当 w 还没被左边缘清零时才计算右边缘
+                if (i < images.size() - 1 && x > (img.cols - overlap_right)) {
+                    float local_x = (float)x - (img.cols - overlap_right);
+                    float center = overlap_right / 2.0f;
+                    float start_f = center - feather_width / 2.0f;
+                    float end_f = center + feather_width / 2.0f;
+
+                    float right_w = 1.0f;
+                    if (local_x < start_f) right_w = 1.0f;
+                    else if (local_x > end_f) right_w = 0.0f;
+                    else right_w = 1.0f - (local_x - start_f) / feather_width;
+                    
+                    w = std::min(w, right_w);
+                }
+
+                int canvas_x = x_start + x;
+                int canvas_y = y_start + y;
+
+                if (canvas_x < 0 || canvas_x >= canvas_size.width || 
+                    canvas_y < 0 || canvas_y >= canvas_size.height) continue;
+
+                cv::Vec3f pix = img.at<cv::Vec3b>(y, x);
+                acc_result.at<cv::Vec3f>(canvas_y, canvas_x) += pix * w;
+                acc_weight.at<float>(canvas_y, canvas_x) += w;
             }
         }
     }
+
+    // 归一化输出
+    for (int y = 0; y < canvas_size.height; ++y) {
+        for (int x = 0; x < canvas_size.width; ++x) {
+            float total_w = acc_weight.at<float>(y, x);
+            if (total_w > 1e-6) {
+                acc_result.at<cv::Vec3f>(y, x) /= total_w;
+            }
+        }
+    }
+    acc_result.convertTo(result, CV_8UC3);
 }
